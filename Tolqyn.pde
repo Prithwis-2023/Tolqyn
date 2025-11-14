@@ -9,7 +9,7 @@ int visibleNodes = 0;
 int focusStartTime = 0;     // when focus node was selected
 int focusDuration = 5000;   // 5 seconds duration of focus
 
-ArrayList<PVector> nodes;             // 3D positions of each node (PVector has x, y, z)
+ArrayList<Node> nodes;             // 3D positions of each node (PVector has x, y, z)
 ArrayList<Float> nodeSizes;           // the size (thickness) of the point representing each node
 ArrayList<Integer> nodeColors;        // color of each node in HSB space
 ArrayList<Float> nodesAlpha;          // opacity of each node; lets nodes fade out over time
@@ -31,6 +31,13 @@ float[] spectrum = new float[bands];
 
 Capture Cam;
 PImage prevFrame;
+
+// C Major
+float[] cMajor = {261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88};
+
+// A Minor
+float[] aMinor = {220.00, 246.94, 261.63, 293.66, 329.63, 349.23, 392.00};
+
 
 class Edge
 {
@@ -66,16 +73,50 @@ class NodeDistance
   }
 }
 
-// generate a random node anywhere in 3D space
-PVector randomNode()
+class Node
 {
-  float radius = random(width / 5, width / 2);
-  float theta = random(TWO_PI); // azimuth (hoz)
-  float phi = random(PI); // polar (vert)
-  float x = radius * sin(phi) * cos(theta);
-  float y = radius * sin(phi) * sin(theta);
-  float z = radius * cos(phi); // depth variation
-  return new PVector(x, y, z);
+  PVector position;
+  int noteIndex;
+  float currentFreq;
+
+  public Node (float[] scale)
+  {
+    float radius = random(width / 5, width / 2);
+    float theta = random(TWO_PI); // azimuth (hoz)
+    float phi = random(PI); // polar (vert)
+    float x = radius * sin(phi) * cos(theta);
+    float y = radius * sin(phi) * sin(theta);
+    float z = radius * cos(phi); // depth variation
+    this.position = new PVector(x, y, z);
+    this.noteIndex = int(random(scale.length));
+    this.currentFreq = scale[noteIndex];
+  }
+}
+// generate a random node anywhere in 3D space
+// PVector randomNode()
+// {
+//   float radius = random(width / 5, width / 2);
+//   float theta = random(TWO_PI); // azimuth (hoz)
+//   float phi = random(PI); // polar (vert)
+//   float x = radius * sin(phi) * cos(theta);
+//   float y = radius * sin(phi) * sin(theta);
+//   float z = radius * cos(phi); // depth variation
+//   return new PVector(x, y, z);
+// }
+
+void playEdgeSound(Node a, Node b) 
+{
+  float meanFreq = (a.currentFreq + b.currentFreq) / 2.0;
+  SinOsc osc = new SinOsc(this);
+  osc.freq(meanFreq);
+  osc.amp(0.2);
+  osc.play();
+  new Thread(() -> {
+    try {
+      Thread.sleep(120);
+      osc.stop();
+    } catch (Exception e) {}
+  }).start();
 }
 
 
@@ -86,17 +127,17 @@ void setup()
   // ----- Nodes -----
   colorMode(HSB, 360, 100, 100, 255);
 
-  nodes = new ArrayList<PVector>();
+  nodes = new ArrayList<Node>();
   nodeSizes = new ArrayList<Float>();
   nodeColors = new ArrayList<Integer>();
   nodesAlpha = new ArrayList<Float>();
   randomFocusNodes = new ArrayList<Integer>();
-
   edges = new ArrayList<Edge>();
 
+  float[] activeScale = cMajor; // default scale
   for (int i = 0; i < totalNodes; i++)
   {
-    nodes.add(randomNode());
+    nodes.add(new Node(activeScale));
     nodeSizes.add(random(10, 20));
     nodeColors.add(color(random(360), 80, 100));
     nodesAlpha.add(255.0); // bright saturated hues across full spectrum and giving full opacity initially
@@ -149,20 +190,26 @@ void draw()
     float motionX = 0, motionY = 0, motionSum = 0;
     for (int i = 0; i < Cam.pixels.length; i++) {
       float diff = abs(brightness(Cam.pixels[i]) - brightness(prevFrame.pixels[i]));
-      if (diff > 15) { // ignore tiny noise
+      if (diff > 15)  // ignore tiny noise
+      { 
         motionX += (i % Cam.width) * diff;
         motionY += (i / Cam.width) * diff;
         motionSum += diff;
       }
     }
     println("Motion Sum: " + motionSum);  
-    if (motionSum > 10000) {
+    float[] activeScale = cMajor; // default
+    if (motionSum > 10000) 
+    {
       float centroidX = motionX / motionSum;
       float centroidY = motionY / motionSum;
       float motionFactor = constrain(map(motionSum, 10000, 100000, 0.1, 1.0), 0, 1.0);
 
       targetAngleY = map(centroidX, 0, Cam.width, -PI/6, PI/6) * motionFactor;
       targetAngleX = map(centroidY, 0, Cam.height, -PI/6, PI/6) * motionFactor;
+    
+      float motionEnergy = constrain(motionSum / 10000.0, 0, 2);
+      activeScale = (motionEnergy < 0.5) ? aMinor : cMajor;
     }
 
     // copy current frame to previous for next comparison
@@ -192,20 +239,21 @@ void draw()
 
   // drawing each node as a 3D point, fading out over time
   // when fully faded, repositioning it randomly and resetting its size, color, and opacity
+  float[] activeScale = cMajor;
   for (int i = 0; i < visibleNodes; i++)
   {
-    PVector n = nodes.get(i);
+    Node n = nodes.get(i);
     float a = nodesAlpha.get(i);
     a -= 1.0; // slow fade rate
     pushMatrix();
-    translate(n.x, n.y, n.z);
+    translate(n.position.x, n.position.y, n.position.z);
     stroke(nodeColors.get(i), a);
     strokeWeight(nodeSizes.get(i));
     point(0, 0, 0);
     popMatrix();
     if (a <= 0)
     {
-      nodes.set(i, randomNode());
+      nodes.set(i, new Node(activeScale));
       nodeSizes.set(i, random(10, 12));
       nodeColors.set(i, color(random(0, 256), random(0, 256), random(0, 256)));
       a = 255.0;
@@ -252,12 +300,12 @@ void draw()
         // for each focus node, find the pairwise distances to all other nodes
         for (int i = 0; i < randomFocusNodes.size(); i++)
         {
-          PVector mainNode = nodes.get(randomFocusNodes.get(i));
+          PVector mainNode = nodes.get(randomFocusNodes.get(i)).position;
           ArrayList<NodeDistance> pairs = new ArrayList<NodeDistance>();
           for (int j = 0; j < visibleNodes; j++)
           {
             if (j == i) continue;
-            float d = PVector.dist(mainNode, nodes.get(j));
+            float d = PVector.dist(mainNode, nodes.get(j).position);
             pairs.add(new NodeDistance(j, d));
           }
 
@@ -276,8 +324,10 @@ void draw()
           for (int k = 0; k < connectCount; k++)
           {
             int idx2 = pairs.get(k).index;
+            Node nodeA = nodes.get(randomFocusNodes.get(i)); // main node but getting the class object for music
+            Node nodeB = nodes.get(idx2);
             PVector a = mainNode;
-            PVector b = nodes.get(idx2);
+            PVector b = nodes.get(idx2).position;
 
             // soft color blend from node colors
             int c1 = nodeColors.get(i);
@@ -291,6 +341,8 @@ void draw()
               );
             float thickness = random(0.5, 1.5);
             edges.add(new Edge(a, b, edgeCol, thickness));
+
+            playEdgeSound(nodeA, nodeB);
           }
         }
       }
