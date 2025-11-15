@@ -7,7 +7,7 @@ int visibleNodes = 0;
 
 //int currentNodeIdx = 0;   // currently focused node
 int focusStartTime = 0;     // when focus node was selected
-int focusDuration = 5000;   // 5 seconds duration of focus
+int focusDuration = 3000;   // 5 seconds duration of focus
 
 ArrayList<Node> nodes;             // 3D positions of each node (PVector has x, y, z)
 ArrayList<Float> nodeSizes;           // the size (thickness) of the point representing each node
@@ -34,10 +34,26 @@ PImage prevFrame;
 
 // C Major
 float[] cMajor = {261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88};
-
 // A Minor
 float[] aMinor = {220.00, 246.94, 261.63, 293.66, 329.63, 349.23, 392.00};
 
+
+float B3 = 246.94;
+float C4 = 261.63;
+float D4 = 293.66;
+float E4 = 329.63;
+float F4 = 349.23;
+
+// sequence of phrases
+float[][] melodyPhrases = {
+  {B3, C4, F4, E4},
+  {B3, C4, E4, D4},
+  {B3, C4, F4},
+  {F4, D4, E4}
+};
+
+int phraseIndex = 0;  // for the music phrase
+int noteIndex = 0;    // for the note inside the phrase
 
 class Edge
 {
@@ -104,21 +120,34 @@ class Node
 //   return new PVector(x, y, z);
 // }
 
-void playEdgeSound(Node a, Node b) 
+void playNextMelodyNote()
 {
-  float meanFreq = (a.currentFreq + b.currentFreq) / 2.0;
+  float freq = melodyPhrases[phraseIndex][noteIndex];
+
+  // playing the note
   SinOsc osc = new SinOsc(this);
-  osc.freq(meanFreq);
-  osc.amp(0.2);
+  osc.freq(freq);
+  osc.amp(0.25);
   osc.play();
+
+  // stop after short time
   new Thread(() -> {
     try {
-      Thread.sleep(120);
+      Thread.sleep(150);
       osc.stop();
     } catch (Exception e) {}
   }).start();
-}
 
+  // transition to next note inside the phrase
+  noteIndex++;
+
+  // if phrase finished, go to next phrase
+  if (noteIndex >= melodyPhrases[phraseIndex].length)
+  {
+    noteIndex = 0;
+    phraseIndex = (phraseIndex + 1) % melodyPhrases.length; // next phrase (loop)
+  }
+}
 
 void setup()
 {
@@ -284,6 +313,8 @@ void draw()
         for (int i = 0; i < randomFocusNodesCount; i++) randomFocusNodes.add(i, int(random(visibleNodes)));
         //currentNodeIdx = int(random(visibleNodes));
         focusStartTime = millis();
+
+        playNextMelodyNote();
       }
 
       // getting the FFT amplitude average
@@ -341,8 +372,6 @@ void draw()
               );
             float thickness = random(0.5, 1.5);
             edges.add(new Edge(a, b, edgeCol, thickness));
-
-            playEdgeSound(nodeA, nodeB);
           }
         }
       }
