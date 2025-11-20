@@ -92,10 +92,10 @@ class NodeDistance
 class Node
 {
   PVector position;
-  int noteIndex;
-  float currentFreq;
+  //int noteIndex;
+  //float currentFreq;
 
-  public Node (float[] scale)
+  public Node ()
   {
     float radius = random(width / 5, width / 2);
     float theta = random(TWO_PI); // azimuth (hoz)
@@ -104,8 +104,8 @@ class Node
     float y = radius * sin(phi) * sin(theta);
     float z = radius * cos(phi); // depth variation
     this.position = new PVector(x, y, z);
-    this.noteIndex = int(random(scale.length));
-    this.currentFreq = scale[noteIndex];
+    //this.noteIndex = int(random(scale.length));
+    //this.currentFreq = scale[noteIndex];
   }
 }
 // generate a random node anywhere in 3D space
@@ -163,10 +163,10 @@ void setup()
   randomFocusNodes = new ArrayList<Integer>();
   edges = new ArrayList<Edge>();
 
-  float[] activeScale = cMajor; // default scale
+  //float[] activeScale = cMajor; // default scale
   for (int i = 0; i < totalNodes; i++)
   {
-    nodes.add(new Node(activeScale));
+    nodes.add(new Node());
     nodeSizes.add(random(10, 20));
     nodeColors.add(color(random(360), 80, 100));
     nodesAlpha.add(255.0); // bright saturated hues across full spectrum and giving full opacity initially
@@ -268,7 +268,7 @@ void draw()
 
   // drawing each node as a 3D point, fading out over time
   // when fully faded, repositioning it randomly and resetting its size, color, and opacity
-  float[] activeScale = cMajor;
+  //float[] activeScale = cMajor;
   for (int i = 0; i < visibleNodes; i++)
   {
     Node n = nodes.get(i);
@@ -282,7 +282,7 @@ void draw()
     popMatrix();
     if (a <= 0)
     {
-      nodes.set(i, new Node(activeScale));
+      nodes.set(i, new Node());
       nodeSizes.set(i, random(10, 12));
       nodeColors.set(i, color(random(0, 256), random(0, 256), random(0, 256)));
       a = 255.0;
