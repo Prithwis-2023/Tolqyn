@@ -18,6 +18,8 @@
 const int L3G4200D_ADDR = 0x69; //I2C address of the L3G4200D
 
 int16_t x, y, z; // 16-bit  signed integers
+float lastX, lastY, lastZ;
+float threshold = 10.0;
 float x_dps, y_dps, z_dps; // converted to degrees per second
 
 const int X_LED = 6;
@@ -31,11 +33,11 @@ void setup()
 
   Wire.begin();
   
-  Serial.println("starting up L3G4200D...");
+  //Serial.println("starting up L3G4200D...");
   setupL3G4200D(2000); // Configure L3G4200  +/- 250, 500 or 2000 deg/sec
 
   delay(1500); //wait for the sensor to be ready 
-  Serial.println("gyro ready");
+  //Serial.println("gyro ready");
 
   pinMode(X_LED, OUTPUT);
   pinMode(Y_LED, OUTPUT);
@@ -54,14 +56,13 @@ void loop()
   y_dps = y / sensitivity;
   z_dps = z / sensitivity; 
 
-  Serial.print("X: "); Serial.print(x_dps, 2);
-  Serial.print("Y: "); Serial.print(y_dps, 2);
-  Serial.print("Z: "); Serial.print(z_dps, 2);
-  Serial.println();
+  Serial.print(x_dps, 2); Serial.print(",");
+  Serial.print(y_dps, 2); Serial.print(",");
+  Serial.println(z_dps, 2);
 
   delay(100); //Just here to slow down the serial to make it more readable
 
-  if (x_dps - lastX >= 1)
+  if (fabs(x_dps - lastX) >= threshold)
   {
     digitalWrite(X_LED, HIGH);
     lastX = x_dps;
@@ -71,7 +72,7 @@ void loop()
     digitalWrite(X_LED, LOW);
   }
   
-  if (y_dps - lastY >= 1)
+  if (fabs(y_dps - lastY) >= threshold)
   {
     digitalWrite(Y_LED, HIGH);
     lastY = y_dps;
@@ -80,7 +81,8 @@ void loop()
   {
     digitalWrite(Y_LED, LOW);
   }
-    if (z_dps - lastZ >= 1)
+
+  if (fabs(z_dps - lastZ) >= threshold)
   {
     digitalWrite(Z_LED, HIGH);
     lastZ = z_dps;

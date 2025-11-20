@@ -1,6 +1,14 @@
 import java.util.*;
 import processing.sound.*;
 import processing.video.*;
+import processing.serial.*;
+
+Serial myPort;
+float gx, gy, gz; // gyro values in dps
+float gyroAngleX = 0;
+float gyroAngleY = 0;
+float gyroAngleZ = 0; 
+long lastGyroTime = 0;
 
 final int totalNodes = 3000; // total nodes
 int visibleNodes = 0;
@@ -20,6 +28,8 @@ float angleY = 0;
 float angleZ = 0;
 float angleX = 0;
 float targetAngleX = 0, targetAngleY = 0;
+float fusedAngleX = 0, fusedAngleY = 0;
+float camWeight = 0.5, gyroWeight = 0.5; // since cam is more stable
 
 int addInterval = 5;  // controls how often a new node becomes visible (in frames)
 int lastAddTime = 0;  // last time a new node was added (in frames)
@@ -31,12 +41,6 @@ float[] spectrum = new float[bands];
 
 Capture Cam;
 PImage prevFrame;
-
-// C Major
-float[] cMajor = {261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88};
-// A Minor
-float[] aMinor = {220.00, 246.94, 261.63, 293.66, 329.63, 349.23, 392.00};
-
 
 float B3 = 246.94;
 float C4 = 261.63;
@@ -187,6 +191,10 @@ void setup()
   Cam = new Capture(this, 320, 240);
   Cam.start();
   prevFrame = createImage(Cam.width, Cam.height, RGB);
+
+  // ---- Serial communication with microcontroller ----
+  myPort = new Serial(this, Serial.list()[0], 9600);
+  myPort.bufferUntil('\n');
 }
 
 void draw()
@@ -197,9 +205,29 @@ void draw()
   translate(width/2, height/2, -500);          // move camera back a bit
   //rotateX(sin(frameCount * 0.002) * PI/3);     // small back-and-forth tilt
   //rotateY(angleY);                             // slow steady spin
-  rotateZ(sin(frameCount * 0.0015) * PI/6);    // subtle drifting rotation
+  //rotateZ(sin(frameCount * 0.0015) * PI/6);    // subtle drifting rotation
   //angleY += 0.01;
   
+  float dt = 0;
+
+  if (lastGyroTime == 0)
+  {
+    lastGyroTime = millis();
+  }
+  else 
+  {
+    dt = (millis() - lastGyroTime) / 1000.0;  // converting ms to seconds
+    lastGyroTime = millis();
+  }
+
+  //integrate angular velocity to angle
+  gyroAngleX += radians(gx) * dt;
+  gyroAngleY += radians(gy) * dt;
+  gyroAngleZ += radians(gz) * dt;
+
+  gyroAngleX = constrain(gyroAngleX, -PI, PI);
+  gyroAngleY = constrain(gyroAngleY, -PI, PI);
+  gyroAngleZ = constrain(gyroAngleZ, -PI, PI);
 
   // Read the camera once per frame
   if (Cam.available()) 
@@ -227,7 +255,7 @@ void draw()
       }
     }
     println("Motion Sum: " + motionSum);  
-    float[] activeScale = cMajor; // default
+    //float[] activeScale = cMajor; // default
     if (motionSum > 10000) 
     {
       float centroidX = motionX / motionSum;
@@ -237,8 +265,8 @@ void draw()
       targetAngleY = map(centroidX, 0, Cam.width, -PI/6, PI/6) * motionFactor;
       targetAngleX = map(centroidY, 0, Cam.height, -PI/6, PI/6) * motionFactor;
     
-      float motionEnergy = constrain(motionSum / 10000.0, 0, 2);
-      activeScale = (motionEnergy < 0.5) ? aMinor : cMajor;
+      // float motionEnergy = constrain(motionSum / 10000.0, 0, 2);
+      // activeScale = (motionEnergy < 0.5) ? aMinor : cMajor;
     }
 
     // copy current frame to previous for next comparison
@@ -250,9 +278,13 @@ void draw()
   angleX += (targetAngleX - angleX) * easing;
   angleY += (targetAngleY - angleY) * easing;
 
+  fusedAngleX = camWeight * angleX + gyroWeight * gyroAngleX;
+  fusedAngleY = camWeight * angleY + gyroWeight * gyroAngleY;
+  
   // Apply rotations to scene
-  rotateX(angleX + sin(frameCount * 0.002) * PI/3);
-  rotateY(angleY + frameCount * 0.01);
+  rotateX(fusedAngleX + sin(frameCount * 0.002) * PI/3);
+  rotateY(fusedAngleY + frameCount * 0.01);
+  rotateZ(radians(gyroAngleZ) + sin(frameCount * 0.0015) * PI/6); 
 
   // ----- FFT -----
   fft.analyze(spectrum);
@@ -376,5 +408,20 @@ void draw()
         }
       }
     }
+  }
+}
+
+void serialEvent(Serial p)
+{
+  String line = p.readStringUntil('\n');
+  if (line == null) return;
+
+  line = trim(line);
+  String[] vals = line.split(",");
+  if (vals.length == 3)
+  {
+    gx = float(vals[0]);
+    gy = float(vals[1]);
+    gz = float(vals[2]);
   }
 }
