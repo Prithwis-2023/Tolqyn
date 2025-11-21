@@ -41,6 +41,35 @@ The system:
 - Plays short tones using `SinOsc`  
 - Automatically loops forever  
 
+### Gyroscope + Camera Fusion Rotation
+Tolkyn can rotate the entire 3D universe using physical motion from an external gyroscope (e.g., MPU-6050 or compatible IMU) combined with webcam-based motion detection.
+#### ⭐ What This Feature Does
+  - Reads real-time X/Y/Z angular velocity from Arduino
+  - Integrates gyro values to compute orientation
+  - Tracks motion from the webcam (motion centroid)
+  - Smoothly fuses them together with adjustable weights:
+```
+fusedAngle = camWeight * cameraAngle + gyroWeight * gyroAngle
+```
+#### 🎮 Why This Matters
+- The scene rotates when you move:
+- Move your hand → camera detects motion → rotation
+- Rotate your device → gyro rotates the scene
+- Both systems support each other:
+  - The camera provides stability
+  - The gyro provides responsiveness and physicality
+
+#### ⚙️ Fusion Details
+- Gyro data integrated with time (dt) to compute angles
+- Scene rotation uses:
+  - rotateX()
+  - rotateY()
+  - rotateZ()
+- Gyro Z-axis is also applied for subtle drifting spin
+- Camera motion centroid changes the target orientation
+- Easing keeps rotation smooth and non-jittery
+This adds a layer of embodied, physical interaction—ideal for installations, performances, or handheld devices.
+
 ### 🎥 Motion-Driven Interaction (Optional)
 
 The webcam feed is analyzed frame-to-frame:
@@ -111,6 +140,11 @@ Input from the microphone is processed with a 512-band FFT:
 ### 🎥 Motion Input
 - Move hands → rotates the 3D node sphere
 
+### 🎮 Gyroscope Input
+- Tilt or rotate your device → rotates the 3D universe
+- Z-axis rotation produces slow drifting spin
+- Camera + gyro blended for stability and responsiveness
+
 ### 🔊 Audio Input
 - Louder sounds → more edges  
 - Quiet → sparse visuals
@@ -124,23 +158,25 @@ Input from the microphone is processed with a 512-band FFT:
 ## 📂 Code Structure
 ```
 Tolqyn/
-│
-├── Tolqyn.pde # Main sketch containing:
-│ - Node class
-│ - Edge class
-│ - NodeDistance class
-│ - FFT + camera processing
-│ - Motion tracking
-│ - Melody engine
-│ - Node/edge rendering
-│
-└── README.md
+└── Tolqyn.ino  # Arduino code
+
+Tolqyn.pde # Main sketch containing:
+    ├── Node class
+    ├── Edge class
+    ├── NodeDistance class
+    ├── FFT + camera processing
+    ├── Gyroscope fusion system
+    ├── Motion tracking
+    ├── Melody engine
+    └── Node/edge rendering
+
+README.md
 ```
 ---
 
 ## 📜 Copyright
 
-Copyright © 2025. Myint Myat Aung and Prithwis Das
+© 2025. **Myint Myat Aung** and **Prithwis Das**
 
 ---
 
@@ -159,13 +195,11 @@ The name symbolizes the breathing, flowing nature of the artwork.
 ---
 
 ## 🌟 Future Improvements
-
-- GPU acceleration using shaders  
-- More musical modes (Lydian, Phrygian, etc.)  
-- Multi-oscillator harmonic textures  
-- MIDI output for external synthesizers  
-- OSC support for live performances  
-- Node clustering (galaxies, spirals, tendrils)
+- Shader-based GPU acceleration
+- IMU-based gesture recognition
+- Multi-oscillator sound engine
+- OSC output for live performance tools
+- Node clustering: galaxies, tendrils, starfields
 
 ---
 
